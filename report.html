@@ -1,0 +1,875 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width,initial-scale=1"
+    >
+
+    <title>
+        StaySense · Prediction Report
+    </title>
+
+    <link
+        rel="stylesheet"
+        href="style.css"
+    >
+
+    <script
+        src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"
+    ></script>
+
+    <style>
+
+        .report {
+            max-width: 1100px;
+            margin: auto;
+        }
+
+        .report-grid {
+
+            display: grid;
+
+            grid-template-columns:
+                1fr 1fr;
+
+            gap: 18px;
+        }
+
+        .report-card {
+
+            background: var(--card);
+
+            border:
+                1px solid var(--line);
+
+            border-radius: 20px;
+
+            padding: 22px;
+        }
+
+        .report-value {
+
+            font:
+                700 34px
+                "Space Grotesk";
+
+            margin: 8px 0;
+        }
+
+        .kv {
+
+            display: flex;
+
+            justify-content:
+                space-between;
+
+            gap: 20px;
+
+            padding: 9px 0;
+
+            border-bottom:
+                1px solid var(--line);
+
+            color: var(--muted);
+        }
+
+        .kv b {
+
+            color: var(--text);
+
+            text-align: right;
+        }
+
+        .chart-box {
+
+            height: 300px;
+
+            position: relative;
+
+            margin-top: 18px;
+        }
+
+        .shap-row {
+
+            padding: 10px 0;
+
+            border-bottom:
+                1px solid var(--line);
+        }
+
+        .shap-head {
+
+            display: flex;
+
+            justify-content:
+                space-between;
+
+            gap: 15px;
+        }
+
+        .shap-bar {
+
+            height: 8px;
+
+            background:
+                rgba(128,128,128,.14);
+
+            border-radius: 99px;
+
+            overflow: hidden;
+
+            margin-top: 7px;
+        }
+
+        .shap-bar i {
+
+            display: block;
+
+            height: 100%;
+
+            border-radius: 99px;
+        }
+
+        .pos {
+            color: var(--teal);
+        }
+
+        .neg {
+            color: var(--red);
+        }
+
+        @media (max-width: 700px) {
+
+            .report-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .kv {
+
+                flex-direction: column;
+
+                gap: 3px;
+            }
+
+            .kv b {
+                text-align: left;
+            }
+        }
+
+    </style>
+
+</head>
+
+
+<body>
+
+<div class="page report">
+
+
+    <!-- HEADER -->
+
+    <header class="topbar">
+
+        <div>
+
+            <div class="eyebrow">
+                STAYSENSE · VISUAL REPORT
+            </div>
+
+            <div class="brand">
+                Prediction Report
+            </div>
+
+        </div>
+
+        <button
+            class="icon-btn"
+            onclick="window.print()"
+        >
+            Print
+        </button>
+
+    </header>
+
+
+    <!-- REPORT CONTENT -->
+
+    <main
+        id="content"
+        style="margin-top:35px"
+    ></main>
+
+
+</div>
+
+
+<script>
+
+
+// ---------------------------------------------------------
+// HTML escaping
+// ---------------------------------------------------------
+
+const esc = value => {
+
+    return String(value ?? "")
+        .replace(
+            /[&<>"']/g,
+
+            character => ({
+
+                "&": "&amp;",
+                "<": "&lt;",
+                ">": "&gt;",
+                '"': "&quot;",
+                "'": "&#039;"
+
+            }[character])
+        );
+};
+
+
+// ---------------------------------------------------------
+// Load saved prediction
+//
+// IMPORTANT:
+// We use localStorage because index.html opens
+// report.html in a NEW TAB.
+// ---------------------------------------------------------
+
+let payload = null;
+let explanation = null;
+
+try {
+
+    payload = JSON.parse(
+        localStorage.getItem(
+            "staysensePayload"
+        ) || "null"
+    );
+
+    explanation = JSON.parse(
+        localStorage.getItem(
+            "staysenseExplanation"
+        ) || "null"
+    );
+
+} catch (error) {
+
+    console.error(
+        "Could not read report data:",
+        error
+    );
+
+}
+
+
+const content =
+    document.getElementById("content");
+
+
+// ---------------------------------------------------------
+// No data
+// ---------------------------------------------------------
+
+if (!payload || !explanation) {
+
+    content.innerHTML = `
+
+        <div class="report-card">
+
+            <h2>
+                No report data
+            </h2>
+
+            <p class="muted">
+
+                Run a prediction from the
+                StaySense home page first.
+
+            </p>
+
+        </div>
+
+    `;
+
+}
+
+
+// ---------------------------------------------------------
+// Render report
+// ---------------------------------------------------------
+
+else {
+
+    const confidence =
+        Math.max(
+            ...explanation.probabilities
+        );
+
+    // Shared room risk (matches SHARED_RISK_THRESHOLD in main_shap.py)
+    const sharedIdx =
+        explanation.classes.indexOf("Shared room");
+    const sharedProb =
+        explanation.probabilities[sharedIdx] || 0;
+    const sharedRisk =
+        explanation.prediction !== "Shared room" &&
+        sharedProb >= 0.20;
+
+
+    // -----------------------------------------------------
+    // Probability rows
+    // -----------------------------------------------------
+
+    const probabilityRows =
+        explanation.classes
+            .map(
+                (className, index) => `
+
+                    <div class="kv">
+
+                        <span>
+                            ${esc(className)}
+                        </span>
+
+                        <b>
+
+                            ${(
+                                explanation
+                                    .probabilities[index] * 100
+                            ).toFixed(1)}%
+
+                        </b>
+
+                    </div>
+
+                `
+            )
+            .join("");
+
+
+    // -----------------------------------------------------
+    // Input rows
+    // -----------------------------------------------------
+
+    const inputRows =
+        Object.entries(payload)
+            .map(
+                ([key, value]) => `
+
+                    <div class="kv">
+
+                        <span>
+                            ${esc(key)}
+                        </span>
+
+                        <b>
+                            ${esc(value)}
+                        </b>
+
+                    </div>
+
+                `
+            )
+            .join("");
+
+
+    // -----------------------------------------------------
+    // Top SHAP features
+    // -----------------------------------------------------
+
+    const features =
+        (explanation.features || [])
+            .slice()
+            .sort(
+                (a, b) =>
+                    Math.abs(
+                        Number(b.shap_value)
+                    )
+                    -
+                    Math.abs(
+                        Number(a.shap_value)
+                    )
+            )
+            .slice(0, 10);
+
+
+    const maxShap =
+        Math.max(
+            0.00001,
+
+            ...features.map(
+                item =>
+                    Math.abs(
+                        Number(
+                            item.shap_value
+                        )
+                    )
+            )
+        );
+
+
+    // -----------------------------------------------------
+    // SHAP rows
+    // -----------------------------------------------------
+
+    const shapRows =
+        features
+            .map(item => {
+
+                const value =
+                    Number(
+                        item.shap_value
+                    );
+
+                const className =
+                    value >= 0
+                        ? "pos"
+                        : "neg";
+
+                const width =
+                    Math.max(
+                        4,
+
+                        Math.min(
+                            100,
+
+                            Math.abs(value)
+                            /
+                            maxShap
+                            *
+                            100
+                        )
+                    );
+
+
+                return `
+
+                    <div class="shap-row">
+
+                        <div class="shap-head">
+
+                            <span>
+
+                                ${esc(
+                                    item.label
+                                )}
+
+                                <small class="muted">
+
+                                    ·
+                                    ${esc(
+                                        item.value
+                                    )}
+
+                                </small>
+
+                            </span>
+
+
+                            <b class="${className}">
+
+                                ${
+                                    value >= 0
+                                        ? "+"
+                                        : ""
+                                }${value.toFixed(4)}
+
+                            </b>
+
+                        </div>
+
+
+                        <div class="shap-bar">
+
+                            <i
+                                class="${className}"
+                                style="
+                                    width:${width}%
+                                "
+                            ></i>
+
+                        </div>
+
+                    </div>
+
+                `;
+
+            })
+            .join("");
+
+
+    // -----------------------------------------------------
+    // Build page
+    // -----------------------------------------------------
+
+    content.innerHTML = `
+
+
+        <!-- Prediction -->
+
+        <div class="report-card">
+
+            <div class="section-kicker">
+                PREDICTION
+            </div>
+
+            <div class="report-value">
+
+                ${esc(
+                    explanation.prediction
+                )}
+
+            </div>
+
+            <p class="muted">
+
+                ${(confidence * 100).toFixed(1)}%
+                model confidence
+
+                ·
+
+                ${
+                    explanation
+                        .transformed_feature_count
+                }
+                transformed features
+
+            </p>
+
+            ${
+                sharedRisk
+                    ? `<div style="display:inline-block;margin-top:10px;padding:6px 12px;border-radius:999px;border:1px solid #c9a15a;background:rgba(201,161,90,.14);color:#c9a15a;font:600 12px monospace">
+                        ⚠ Shared room risk: ${(sharedProb * 100).toFixed(0)}% chance
+                       </div>`
+                    : ""
+            }
+
+        </div>
+
+
+        <!-- Probability + Inputs -->
+
+        <div
+            class="report-grid"
+            style="margin-top:18px"
+        >
+
+
+            <!-- Probability -->
+
+            <div class="report-card">
+
+                <h2>
+                    Class probabilities
+                </h2>
+
+                <div class="chart-box">
+
+                    <canvas
+                        id="probabilityChart"
+                    ></canvas>
+
+                </div>
+
+                ${probabilityRows}
+
+            </div>
+
+
+            <!-- Inputs -->
+
+            <div class="report-card">
+
+                <h2>
+                    Listing inputs
+                </h2>
+
+                ${inputRows}
+
+            </div>
+
+
+        </div>
+
+
+        <!-- SHAP -->
+
+        <div
+            class="report-card"
+            style="margin-top:18px"
+        >
+
+            <h2>
+                Why this prediction?
+            </h2>
+
+            <p class="muted">
+
+                Positive SHAP values push
+                toward the predicted class;
+                negative values push away
+                from it.
+
+            </p>
+
+
+            <div class="chart-box">
+
+                <canvas
+                    id="shapChart"
+                ></canvas>
+
+            </div>
+
+
+            ${shapRows}
+
+        </div>
+
+    `;
+
+
+    // -----------------------------------------------------
+    // Chart theme colors
+    // -----------------------------------------------------
+
+    const textColor =
+        getComputedStyle(document.body)
+            .getPropertyValue("--text")
+            .trim();
+
+    const mutedColor =
+        getComputedStyle(document.body)
+            .getPropertyValue("--muted")
+            .trim();
+
+
+    // -----------------------------------------------------
+    // Probability chart
+    // -----------------------------------------------------
+
+    new Chart(
+        document.getElementById(
+            "probabilityChart"
+        ),
+        {
+
+            type: "bar",
+
+            data: {
+
+                labels:
+                    explanation.classes,
+
+                datasets: [
+
+                    {
+
+                        data:
+                            explanation
+                                .probabilities
+                                .map(
+                                    value =>
+                                        value * 100
+                                ),
+
+                        backgroundColor: [
+                            "#55d7c7",
+                            "#ffb65c",
+                            "#ff7181"
+                        ],
+
+                        borderRadius: 8
+
+                    }
+
+                ]
+
+            },
+
+
+            options: {
+
+                responsive: true,
+
+                maintainAspectRatio: false,
+
+                indexAxis: "y",
+
+                plugins: {
+
+                    legend: {
+                        display: false
+                    }
+
+                },
+
+                scales: {
+
+                    x: {
+
+                        min: 0,
+
+                        max: 100,
+
+                        ticks: {
+
+                            callback:
+                                value =>
+                                    value + "%",
+
+                            color:
+                                mutedColor
+
+                        },
+
+                        grid: {
+
+                            color:
+                                "rgba(128,128,128,.12)"
+
+                        }
+
+                    },
+
+                    y: {
+
+                        ticks: {
+
+                            color:
+                                textColor
+
+                        },
+
+                        grid: {
+                            display: false
+                        }
+
+                    }
+
+                }
+
+            }
+
+        }
+    );
+
+
+    // -----------------------------------------------------
+    // SHAP chart
+    // -----------------------------------------------------
+
+    new Chart(
+        document.getElementById(
+            "shapChart"
+        ),
+        {
+
+            type: "bar",
+
+            data: {
+
+                labels:
+                    features.map(
+                        item =>
+                            item.label
+                    ),
+
+                datasets: [
+
+                    {
+
+                        data:
+                            features.map(
+                                item =>
+                                    Number(
+                                        item.shap_value
+                                    )
+                            ),
+
+                        backgroundColor:
+                            features.map(
+                                item =>
+                                    Number(
+                                        item.shap_value
+                                    ) >= 0
+
+                                        ? "#55d7c7"
+
+                                        : "#ff7181"
+                            ),
+
+                        borderRadius: 7
+
+                    }
+
+                ]
+
+            },
+
+
+            options: {
+
+                responsive: true,
+
+                maintainAspectRatio: false,
+
+                indexAxis: "y",
+
+                plugins: {
+
+                    legend: {
+                        display: false
+                    }
+
+                },
+
+                scales: {
+
+                    x: {
+
+                        ticks: {
+                            color: mutedColor
+                        },
+
+                        grid: {
+
+                            color:
+                                "rgba(128,128,128,.12)"
+
+                        }
+
+                    },
+
+                    y: {
+
+                        ticks: {
+                            color: textColor
+                        },
+
+                        grid: {
+                            display: false
+                        }
+
+                    }
+
+                }
+
+            }
+
+        }
+    );
+
+}
+
+</script>
+
+</body>
+
+</html>

@@ -1,0 +1,58 @@
+
+  <!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>StaySense · NYC Airbnb Predictor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"></script>
+</head>
+<body>
+<div class="bg" aria-hidden="true">
+  <svg class="skyline" viewBox="0 0 1440 420" preserveAspectRatio="xMidYMax slice" xmlns="http://www.w3.org/2000/svg">
+    <g class="sky-far">
+      <rect x="-10" y="260" width="70" height="160"/>
+      <rect x="55" y="230" width="55" height="190"/>
+      <rect x="105" y="280" width="90" height="140"/>
+      <rect x="190" y="245" width="60" height="175"/>
+      <rect x="245" y="300" width="120" height="120"/>
+      <rect x="1050" y="270" width="80" height="150"/>
+      <rect x="1125" y="235" width="60" height="185"/>
+      <rect x="1180" y="290" width="100" height="130"/>
+      <rect x="1275" y="255" width="70" height="165"/>
+      <rect x="1340" y="295" width="100" height="125"/>
+    </g>
+    <g class="sky-near">
+      <rect x="360" y="215" width="50" height="205"/>
+      <rect x="415" y="255" width="65" height="165"/>
+      <polygon points="480,420 480,190 515,190 515,150 528,150 528,120 541,150 541,190 550,190 550,420"/>
+      <rect x="565" y="235" width="45" height="185"/>
+      <path d="M615 420 V200 h60 v-30 h14 v-24 h14 v24 h14 v30 h58 v220 z"/>
+      <rect x="800" y="260" width="42" height="160"/>
+      <path d="M850 420 V150 h70 l-18 -34 h-34 l-18 34 z M868 116 h34 v34 h-34 z"/>
+      <rect x="945" y="225" width="55" height="195"/>
+      <rect x="1005" y="270" width="40" height="150"/>
+    </g>
+  </svg>
+</div>
+<div class="page">
+<header class="topbar"><div><div class="eyebrow">STAYSENSE · NYC AIRBNB</div><div class="brand">Room Type Predictor</div></div><div class="top-actions"><span id="apiStatus" class="status"><i></i> Checking API</span><button id="themeBtn" class="icon-btn" title="Toggle theme">☾</button></div></header>
+<section class="hero"><div><h1>What kind of stay<br><span>is this listing?</span></h1><p>Enter listing details. StaySense predicts the room type and shows <b>why</b> the model made that prediction.</p></div><div class="hero-chip">Random Forest<br><small>+ SHAP explainability</small></div></section>
+<main class="layout">
+<section class="card form-card"><div class="card-head"><div><div class="section-kicker">No. 01 — Listing</div><h2>Listing details</h2></div><button id="exampleBtn" class="ghost">Try example</button></div>
+<form id="predictForm">
+<div class="group"><h3>Location</h3><div class="two"><label>Latitude<input id="latitude" name="latitude" type="number" step="0.000001" value="40.7484" required></label><label>Longitude<input id="longitude" name="longitude" type="number" step="0.000001" value="-73.9857" required></label></div><div class="two"><label>Borough<select id="neighbourhood_group" name="neighbourhood_group" required><option>Manhattan</option><option>Brooklyn</option><option>Queens</option><option>Bronx</option><option>Staten Island</option></select></label><label>Neighbourhood<input id="neighbourhood" name="neighbourhood" value="Midtown" required></label></div></div>
+<div class="group"><h3>Pricing & stay</h3><div class="two"><label>Price / night (USD)<input id="price" name="price" type="number" min="1" value="120" required></label><label>Minimum nights<input id="minimum_nights" name="minimum_nights" type="number" min="1" max="365" value="2" required></label></div><label>Availability <output id="availabilityValue">210</output> days / year<input id="availability_365" name="availability_365" type="range" min="0" max="365" value="210"></label></div>
+<div class="group"><h3>Reviews & host</h3><div class="two"><label>Total reviews<input id="number_of_reviews" name="number_of_reviews" type="number" min="0" value="84" required></label><label>Reviews / month<input id="reviews_per_month" name="reviews_per_month" type="number" min="0" step="0.1" value="2.3" required></label></div><label>Listings by this host<input id="calculated_host_listings_count" name="calculated_host_listings_count" type="number" min="0" value="1" required></label></div>
+<button class="primary" id="predictBtn" type="submit"><span>Predict room type</span><span class="spinner"></span></button><p id="error" class="error"></p>
+</form></section>
+<section class="results">
+<div class="card prediction-card" id="predictionCard"><div class="section-kicker">No. 02 — Prediction</div><div id="empty"><div class="orb">✦</div><h2>Your prediction will appear here</h2><p>Run the model to see probabilities and an explanation.</p></div><div id="prediction" hidden><div class="predict-label">Predicted room type</div><div class="prediction-name" id="predictionName">—</div><div class="confidence"><span id="confidence">—</span> confidence</div><div id="sharedRisk" class="risk-badge" hidden></div><div class="chart-wrap"><canvas id="probChart"></canvas></div><div class="actions"><a id="reportLink" class="secondary" href="report.html" target="_blank">View visual report ↗</a><button id="pdfBtn" class="secondary">Download PDF</button></div></div></div>
+<div class="card explain-card" id="explainCard" hidden><div class="card-head"><div><div class="section-kicker">No. 03 — Explainability</div><h2>Why this prediction?</h2></div><span class="pill">SHAP</span></div><p class="muted">Positive contributions push toward the predicted class. Negative contributions push away from it.</p><div id="shapList" class="shap-list"></div></div>
+<div class="card history-card"><div class="card-head"><div><div class="section-kicker">No. 04 — History</div><h2>Recent predictions</h2></div><button id="clearHistory" class="ghost">Clear</button></div><div id="history" class="history-empty">No predictions yet.</div></div>
+</section></main>
+<footer>FastAPI · Scikit-learn · Random Forest · SHAP</footer></div>
+<script src="script.js"></script>
+</body></html>
